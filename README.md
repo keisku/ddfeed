@@ -6,9 +6,14 @@ This is a simple web application that enables you to test Datadog products such 
 
 ![ddfeed architecture](./ddfeed.png)
 
+## Prerequisites
+
+- Apple Silicon Mac
+- [Docker Desktop on Mac](https://docs.docker.com/desktop/setup/install/mac-install/)
+
 ## Getting Started
 
-Write your own configs or credentials to `.env` file.
+Write your own configs or credentials to `.env` file after copying the template file.
 
 ```bash
 cp .template.env .env
@@ -16,9 +21,8 @@ cp .template.env .env
 
 > [!CAUTION]
 > Don't use `docker compose up` or `docker compose build`.
-> You can use other `docker compose` commands for checking the app status, logs or executing commands in the containers.
 
-Run all applications. You must use this script to run all services.
+You must use this script to run all services.
 
 ```bash
 # If you want to try Datadog Tracer.
@@ -27,6 +31,13 @@ Run all applications. You must use this script to run all services.
 # If you want to try OTel Tracer.
 ./run.sh otel
 ```
+
+For checking the app status, logs or executing commands in the containers, you can use other `docker compose` commands.
+
+Examples:
+
+- `docker compose exec agent agent status`: Check the status of the Datadog Agent.
+- `docker compose logs backend`: Check the logs of the Backend service.
 
 ## Services
 
