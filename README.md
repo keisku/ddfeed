@@ -41,27 +41,27 @@ Examples:
 
 ## Services
 
-### Frontend Service
+### Frontend
 
 - Nginx-based web server serving the UI.
 - RUM Automatic instrumentation is enabled.
 
-### Envoy Proxy
+### Gateway
 
 - Acts as an API Gateway
 - Routes requests from UI to Backend service
 - Technically, we don't need this service, but it's useful for understanding the proxy tracing.
 
-### Backend Service
+### Backend
 
 - Go-based REST API service providing endpoints for post and comment management.
 - Supports both Datadog and OpenTelemetry tracing. You can switch the tracer by `./run.sh dd` or `./run.sh otel`.
 
-### MySQL Database
+### MySQL
 
 - Stores posts and comments
 
-### Valkey Cache
+### Valkey
 
 - Used for caching post contents and comment counts
 
