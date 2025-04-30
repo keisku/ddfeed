@@ -1,0 +1,80 @@
+static_resources:
+  listeners:
+  - name: server_listener
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8080
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          tracing:
+            provider:
+              name: envoy.tracers.opentelemetry
+              typed_config:
+                "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                service_name: "ddfeed-gateway"
+                http_service:
+                  http_uri:
+                    uri: "http://agent:4318/v1/traces"
+                    cluster: otlp-ingest
+                    timeout: 0.250s
+                sampler:
+                  name: envoy.tracers.opentelemetry.samplers.always_on
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.tracers.opentelemetry.samplers.v3.AlwaysOnSamplerConfig
+          codec_type: AUTO
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: backend
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: backend
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+          use_remote_address: true
+
+  clusters:
+  - name: backend
+    connect_timeout: 0.250s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: backend
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: backend
+                port_value: 8080
+
+  - name: otlp-ingest
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: otlp-ingest
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: agent
+                port_value: 4318
+
+admin:
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 9901

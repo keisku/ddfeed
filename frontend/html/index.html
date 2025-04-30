@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDFeed</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <form id="add-post-form" class="add-post-card">
+            <textarea id="post-body" required placeholder="What's on your mind?"></textarea>
+            <button type="submit">Post</button>
+        </form>
+        <div id="posts-list"></div>
+        <div id="post-detail" class="hidden">
+            <div id="post-content"></div>
+            <ul id="comments-list"></ul>
+            <form id="add-comment-form">
+                <input type="text" id="comment-body" required placeholder="Add a comment...">
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html> 

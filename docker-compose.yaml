@@ -1,0 +1,91 @@
+services:
+  agent:
+    image: datadog/agent:7-beta
+    volumes:
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /proc/:/host/proc/:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    pid: host
+    cgroup: host
+    environment:
+      - DD_LOG_LEVEL=debug
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+      - DD_APM_ENABLED=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
+      - DD_APM_ERROR_TRACKING_STANDALONE_ENABLED=false
+      - DD_APM_ENABLE_RARE_SAMPLER=false
+      - DD_APM_PROBABILISTIC_SAMPLER_ENABLED=false
+      - DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE=100
+      - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT=0.0.0.0:4317
+      - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318
+      - DD_INTERNAL_PROFILING_ENABLED=true
+      - DD_INTEGRATION_TRACING=false
+      - DD_INTEGRATION_PROFILING=false
+      - DD_OTLP_CONFIG_DEBUG_VERBOSITY=detailed
+    env_file:
+      - .env
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - 16163:80 # Browser -> Web Server (Nginx) -> UI
+    environment:
+      - DD_SERVICE=ddfeed-frontend
+      - DD_TRACE_DEBUG=true
+      - DD_TRACE_STARTUP_LOGS=true
+      - DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED=true
+    env_file:
+      - .env
+  gateway:
+    build:
+      context: ./gateway
+    ports:
+      - 16080:8080 # UI -> Gateway (Envoy) -> Backend
+    environment:
+      - DD_TRACE_DEBUG=true
+      - DD_TRACE_STARTUP_LOGS=true
+      - DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED=true
+    env_file:
+      - .env
+  backend:
+    image: ddfeed-backend
+    environment:
+      - DDFEED_BACKEND_DATA_SOURCE_NAME=backend:password@tcp(mysql:3306)/ddfeed # user:password@tcp(host:port)/database
+      - DDFEED_BACKEND_PORT=8080
+      # Datadog
+      - DD_SERVICE=ddfeed-backend
+      - DD_TRACE_DEBUG=false
+      - DD_TRACE_STARTUP_LOGS=false
+      - DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED=true
+      # OTel
+      - OTEL_EXPORTER_OTLP_ENDPOINT=agent:4317
+      - OTEL_SERVICE_NAME=ddfeed-backend
+      - OTEL_TRACE_DEBUG=false
+    env_file:
+      - .env
+  mysql:
+    image: mysql:8
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "mysql": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": "3306",
+                "username": "datadog",
+                "password": "datadog",
+                "dbm": "true"
+              }
+            ]
+          }
+        }
+    volumes:
+      - ./mysql/init.sh:/docker-entrypoint-initdb.d/init.sh
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_USER: datadog
+      MYSQL_PASSWORD: datadog
+  valkey:
+    image: valkey/valkey:8
