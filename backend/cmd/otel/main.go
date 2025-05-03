@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"backend/internal/endpoint"
-	"backend/internal/middleware"
 
 	"github.com/XSAM/otelsql"
 	_ "github.com/go-sql-driver/mysql"
@@ -118,7 +117,7 @@ func main() {
 	}
 	slog.Info("Starting server on port " + port)
 	go func() {
-		if err := http.ListenAndServe(":"+port, middleware.Wrap(http.DefaultServeMux, middleware.CORS())); err != nil {
+		if err := http.ListenAndServe(":"+port, http.DefaultServeMux); err != nil {
 			slog.Error("Failed to start server", slog.Any("error", err))
 		}
 	}()

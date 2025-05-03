@@ -48,8 +48,9 @@ Examples:
 
 ### Gateway
 
-- Acts as an API Gateway
-- Routes requests from UI to Backend service
+- Acts as an API Gateway.
+- Routes requests from UI to Backend service.
+- CORS is enabled for the UI.
 - Technically, we don't need this service, but it's useful for understanding the proxy tracing.
 
 ### Backend
@@ -59,11 +60,11 @@ Examples:
 
 ### MySQL
 
-- Stores posts and comments
+- Stores posts and comments.
 
 ### Valkey
 
-- Used for caching post contents and comment counts
+- Used for caching post contents and comment counts.
 
 ### Datadog Agent
 
