@@ -28,6 +28,7 @@ services:
   frontend:
     build:
       context: ./frontend
+      target: ${APM_TARGET}
     ports:
       - 16163:80 # Browser -> Web Server (Nginx) -> UI
     environment:
@@ -40,6 +41,8 @@ services:
   gateway:
     build:
       context: ./gateway
+      args:
+        - APM_TARGET=${APM_TARGET}
     ports:
       - 16080:8080 # UI -> Gateway (Envoy) -> Backend
     environment:
@@ -49,7 +52,9 @@ services:
     env_file:
       - .env
   backend:
-    image: ddfeed-backend
+    build:
+      context: ./backend
+      target: ${APM_TARGET}
     environment:
       - DDFEED_BACKEND_DATA_SOURCE_NAME=backend:password@tcp(mysql:3306)/ddfeed # user:password@tcp(host:port)/database
       - DDFEED_BACKEND_PORT=8080

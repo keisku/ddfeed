@@ -19,17 +19,14 @@ Write your own configs or credentials to `.env` file after copying the template 
 cp .template.env .env
 ```
 
-> [!CAUTION]
-> Don't use `docker compose up` or `docker compose build`.
-
-You must use this script to run all services.
+Build and run containers.
 
 ```bash
 # If you want to try Datadog Tracer.
-./run.sh dd
+APM_TARGET=dd COMPOSE_BAKE=true docker compose up -d --build
 
 # If you want to try OTel Tracer.
-./run.sh otel
+APM_TARGET=otel COMPOSE_BAKE=true docker compose up -d --build
 ```
 
 For checking the app status, logs or executing commands in the containers, you can use other `docker compose` commands.
@@ -38,6 +35,7 @@ Examples:
 
 - `docker compose exec agent agent status`: Check the status of the Datadog Agent.
 - `docker compose logs backend`: Check the logs of the Backend service.
+- `docker compose down`: Stop all services.
 
 ## Services
 
