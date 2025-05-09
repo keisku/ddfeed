@@ -82,9 +82,10 @@ services:
       - .env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/readiness"]
-      interval: 10s
+      interval: 300s
       timeout: 5s
       retries: 5
+      start_period: 5s
   mysql:
     image: mysql:8
     labels:
@@ -111,7 +112,7 @@ services:
       MYSQL_PASSWORD: datadog
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-ppassword"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
