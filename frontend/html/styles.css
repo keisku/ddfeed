@@ -305,4 +305,51 @@ button:active {
 #add-comment-form button {
     padding: 8px 16px;
     font-size: 14px;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+    gap: 10px;
+}
+
+.pagination button {
+    padding: 8px 16px;
+    border: 1px solid var(--primary);
+    background-color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 16px;
+    color: var(--primary);
+    transition: var(--transition-all);
+}
+
+.pagination button:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    color: #999;
+}
+
+.pagination button:not(:disabled):hover {
+    background-color: var(--primary);
+    color: white;
+}
+
+.pagination span {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.pagination button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--border-light);
+    color: var(--text-secondary);
+}
+
+.pagination button:not(.disabled) {
+    opacity: 1;
+    cursor: pointer;
 } 

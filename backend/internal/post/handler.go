@@ -49,6 +49,9 @@ func Create(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 		if err := vk.Do(r.Context(), vk.B().Set().Key(countKey).Value("0").Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to set comment count in valkey", slog.Any("error", err))
 		}
+		if err := vk.Do(r.Context(), vk.B().Incr().Key("post:total_count").Build()).Error(); err != nil {
+			slog.ErrorContext(r.Context(), "failed to increment total post count in valkey", slog.Any("error", err))
+		}
 		post.ID = int(id)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(post)
@@ -57,19 +60,60 @@ func Create(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 
 func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		if page < 1 {
+			page = 1
+		}
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		if limit < 1 || limit > 100 {
+			limit = 10
+		}
+		offset := (page - 1) * limit
+
 		var posts []Post
-		if err := db.SelectContext(r.Context(), &posts, "SELECT id, body FROM post"); err != nil {
+		if err := db.SelectContext(r.Context(), &posts,
+			"SELECT id, body FROM post ORDER BY id DESC LIMIT ? OFFSET ?",
+			limit, offset); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		var total int
+		if count, err := vk.Do(r.Context(), vk.B().Get().Key("post:total_count").Build()).AsInt64(); err == nil {
+			// Avoid full index scan.
+			total = int(count)
+		} else {
+			// If not in valkey, get from DB and cache it. Be aware that this is a full index scan.
+			if err := db.GetContext(r.Context(), &total, "SELECT COUNT(*) FROM post"); err != nil {
+				slog.ErrorContext(r.Context(), "failed to get total count", slog.Any("error", err))
+			} else {
+				if err := vk.Do(r.Context(), vk.B().Set().Key("post:total_count").Value(strconv.Itoa(total)).Build()).Error(); err != nil {
+					slog.ErrorContext(r.Context(), "failed to set total count in valkey", slog.Any("error", err))
+				}
+			}
+		}
+
 		for i := range posts {
 			countKey := fmt.Sprintf("post:%d:comment_count", posts[i].ID)
 			if count, err := vk.Do(r.Context(), vk.B().Get().Key(countKey).Build()).AsInt64(); err == nil {
 				posts[i].CommentCount = int(count)
 			}
 		}
+
+		response := struct {
+			Posts []Post `json:"posts"`
+			Page  int    `json:"page"`
+			Limit int    `json:"limit"`
+			Total int    `json:"total"`
+		}{
+			Posts: posts,
+			Page:  page,
+			Limit: limit,
+			Total: total,
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(posts)
+		json.NewEncoder(w).Encode(response)
 	}
 }
 
@@ -129,6 +173,9 @@ func Delete(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 		}
 		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%d:comment_count", id)).Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to delete comment count in valkey", slog.Any("error", err))
+		}
+		if err := vk.Do(r.Context(), vk.B().Decr().Key("post:total_count").Build()).Error(); err != nil {
+			slog.ErrorContext(r.Context(), "failed to decrement total post count in valkey", slog.Any("error", err))
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}

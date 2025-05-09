@@ -10,16 +10,20 @@ const elements = {
     postContent: document.getElementById('post-content'),
     commentsList: document.getElementById('comments-list'),
     addCommentForm: document.getElementById('add-comment-form'),
-    commentBodyInput: document.getElementById('comment-body')
+    commentBodyInput: document.getElementById('comment-body'),
+    pagination: document.getElementById('pagination')
 };
 
 // State
 let currentPostId = null;
+let currentPage = 1;
+let totalPages = 1;
+const postsPerPage = 10;
 
 // API Functions
 const api = {
-    async getPosts() {
-        const response = await fetch(`${API_BASE}/posts`);
+    async getPosts(page = 1, limit = postsPerPage) {
+        const response = await fetch(`${API_BASE}/posts?page=${page}&limit=${limit}`);
         if (!response.ok) throw new Error('Failed to fetch posts');
         return response.json();
     },
@@ -117,19 +121,56 @@ const ui = {
     showError(message) {
         console.error(message);
         alert(message);
+    },
+
+    createPaginationControls() {
+        const div = document.createElement('div');
+        div.className = 'pagination';
+        
+        // Previous button
+        const prevButton = document.createElement('button');
+        prevButton.textContent = '←';
+        prevButton.className = currentPage <= 1 ? 'disabled' : '';
+        prevButton.onclick = () => {
+            if (currentPage > 1) changePage(currentPage - 1);
+        };
+        
+        // Page numbers
+        const pageInfo = document.createElement('span');
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        
+        // Next button
+        const nextButton = document.createElement('button');
+        nextButton.textContent = '→';
+        nextButton.className = currentPage >= totalPages ? 'disabled' : '';
+        nextButton.onclick = () => {
+            if (currentPage < totalPages) changePage(currentPage + 1);
+        };
+        
+        div.appendChild(prevButton);
+        div.appendChild(pageInfo);
+        div.appendChild(nextButton);
+        
+        elements.pagination.innerHTML = '';
+        elements.pagination.appendChild(div);
     }
 };
 
 // Event Handlers
 async function fetchPosts() {
     try {
-        const posts = await api.getPosts();
+        const response = await api.getPosts(currentPage, postsPerPage);
         elements.postsList.innerHTML = '';
-        if (Array.isArray(posts)) {
-            posts.forEach(post => {
+        
+        if (Array.isArray(response.posts)) {
+            response.posts.forEach(post => {
                 elements.postsList.appendChild(ui.createPostElement(post));
             });
         }
+        
+        // Update pagination
+        totalPages = Math.ceil(response.total / postsPerPage);
+        ui.createPaginationControls();
     } catch (error) {
         console.error('Error fetching posts:', error);
     }
@@ -158,6 +199,12 @@ async function deletePost(id) {
     } catch (error) {
         ui.showError('Failed to delete post');
     }
+}
+
+async function changePage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    await fetchPosts();
 }
 
 // Event Listeners
