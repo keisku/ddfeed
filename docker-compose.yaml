@@ -98,7 +98,8 @@ services:
                 "port": "3306",
                 "username": "datadog",
                 "password": "datadog",
-                "dbm": "true"
+                "reported_hostname": "ddfeed",
+                "dbm": true
               }
             ]
           }

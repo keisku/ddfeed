@@ -6,6 +6,9 @@
 # Enable performance schema
 performance_schema=ON
 
+max_digest_length=4096
+performance_schema_max_sql_text_length=4096
+
 # Enable wait instruments
 performance_schema_instrument='wait/%=ON'
 
@@ -13,3 +16,5 @@ performance_schema_instrument='wait/%=ON'
 performance_schema_consumer_events_waits_current=ON
 performance_schema_consumer_events_waits_history=ON
 performance_schema_consumer_events_waits_history_long=ON
+performance_schema_consumer_events_statements_history=ON
+performance_schema_consumer_events_statements_history_long=ON
