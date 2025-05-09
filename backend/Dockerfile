@@ -9,6 +9,10 @@ COPY go.sum go.sum
 RUN go generate ./...
 RUN CGO_ENABLED=0 orchestrion go build -ldflags "-s -w" -o app ./cmd/dd/main.go
 FROM debian:bookworm-slim AS dd
+RUN <<EOF
+apt-get update
+apt-get install -y curl
+EOF
 COPY --from=dd-build /build/app /run/app
 ENTRYPOINT ["/run/app"]
 
@@ -20,5 +24,9 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o app ./cmd/otel/main.go
 FROM debian:bookworm-slim AS otel
+RUN <<EOF
+apt-get update
+apt-get install -y curl
+EOF
 COPY --from=otel-build /build/app /run/app
 ENTRYPOINT ["/run/app"]

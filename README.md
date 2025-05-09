@@ -29,6 +29,8 @@ APM_TARGET=dd COMPOSE_BAKE=true docker compose up -d --build
 APM_TARGET=otel COMPOSE_BAKE=true docker compose up -d --build
 ```
 
+Go to http://localhost:16163
+
 For checking the app status, logs or executing commands in the containers, you can use other `docker compose` commands.
 
 Examples:
