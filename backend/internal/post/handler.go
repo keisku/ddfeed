@@ -62,10 +62,12 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		if page < 1 {
+			slog.WarnContext(r.Context(), "page is less than 1, fallback to 1", slog.Int("page", page))
 			page = 1
 		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		if limit < 1 || limit > 100 {
+			slog.WarnContext(r.Context(), "limit is less than 1 or greater than 100, fallback to 10", slog.Int("limit", limit))
 			limit = 10
 		}
 		offset := (page - 1) * limit
@@ -93,10 +95,15 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 			}
 		}
 
+		countKeys := make([]string, len(posts))
 		for i := range posts {
-			countKey := fmt.Sprintf("post:%d:comment_count", posts[i].ID)
-			if count, err := vk.Do(r.Context(), vk.B().Get().Key(countKey).Build()).AsInt64(); err == nil {
-				posts[i].CommentCount = int(count)
+			countKeys[i] = fmt.Sprintf("post:%d:comment_count", posts[i].ID)
+		}
+		if results, err := vk.Do(r.Context(), vk.B().Mget().Key(countKeys...).Build()).ToArray(); err == nil {
+			for i, result := range results {
+				if count, err := result.AsInt64(); err == nil {
+					posts[i].CommentCount = int(count)
+				}
 			}
 		}
 
