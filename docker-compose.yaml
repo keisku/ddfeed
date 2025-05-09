@@ -73,6 +73,7 @@ services:
       - DD_TRACE_DEBUG=false
       - DD_TRACE_STARTUP_LOGS=false
       - DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED=true
+      - DD_DBM_PROPAGATION_MODE=full
       # OTel
       - OTEL_EXPORTER_OTLP_ENDPOINT=agent:4317
       - OTEL_SERVICE_NAME=ddfeed-backend
