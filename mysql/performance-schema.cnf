@@ -1,0 +1,15 @@
+# Performance Schema Configuration for Datadog DBM
+# This file contains settings to enable wait instruments and wait event consumers
+# It will be mounted to /etc/mysql/conf.d/performance-schema.cnf
+
+[mysqld]
+# Enable performance schema
+performance_schema=ON
+
+# Enable wait instruments
+performance_schema_instrument='wait/%=ON'
+
+# Enable wait event consumers
+performance_schema_consumer_events_waits_current=ON
+performance_schema_consumer_events_waits_history=ON
+performance_schema_consumer_events_waits_history_long=ON

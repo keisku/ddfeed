@@ -104,6 +104,7 @@ services:
         }
     volumes:
       - ./mysql/init.sh:/docker-entrypoint-initdb.d/init.sh
+      - ./mysql/performance-schema.cnf:/etc/mysql/conf.d/performance-schema.cnf
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_USER: datadog

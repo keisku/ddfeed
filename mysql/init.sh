@@ -15,20 +15,39 @@ CREATE TABLE IF NOT EXISTS comment (
 );
 CREATE INDEX idx_comment_post_id ON comment(post_id);
 "
-mysql -u root -p'password' -e "
-UPDATE performance_schema.setup_instruments
-SET ENABLED = 'YES', TIMED = 'YES'
-WHERE NAME LIKE 'wait/%';
-
-UPDATE performance_schema.setup_consumers
-SET ENABLED = 'YES'
-WHERE NAME LIKE 'events_waits%';
-"
 mysql -u root -p'password' -e "\
 GRANT REPLICATION CLIENT ON *.* TO 'datadog'@'%';
 GRANT PROCESS ON *.* TO 'datadog'@'%';
 GRANT SELECT ON *.* TO 'datadog'@'%'; FLUSH PRIVILEGES;
+CREATE SCHEMA IF NOT EXISTS datadog;
+GRANT EXECUTE ON datadog.* to datadog@'%';
 "
+# https://docs.datadoghq.com/database_monitoring/setup_mysql/troubleshooting/#explain-plan-procedure-missing
+mysql -u root -p'password' -e "
+DELIMITER $$
+CREATE PROCEDURE datadog.explain_statement(IN query TEXT)
+    SQL SECURITY DEFINER
+BEGIN
+    SET @explain := CONCAT('EXPLAIN FORMAT=json ', query);
+    PREPARE stmt FROM @explain;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+END $$
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE datadog.explain_statement TO 'datadog'@'%';
+DELIMITER $$
+CREATE PROCEDURE ddfeed.explain_statement(IN query TEXT)
+    SQL SECURITY DEFINER
+BEGIN
+    SET @explain := CONCAT('EXPLAIN FORMAT=json ', query);
+    PREPARE stmt FROM @explain;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+END $$
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE ddfeed.explain_statement TO 'datadog'@'%';
+"
+# https://docs.datadoghq.com/database_monitoring/setup_mysql/troubleshooting/#events-waits-current-not-enabled
 mysql -u root -p'password' -e "\
   CREATE USER IF NOT EXISTS 'backend'@'%' IDENTIFIED BY 'password';\
   GRANT ALL PRIVILEGES ON ddfeed.* TO 'backend'@'%';\
