@@ -56,7 +56,7 @@ Examples:
 ### Backend
 
 - Go-based REST API service providing endpoints for post and comment management.
-- Supports both Datadog and OpenTelemetry tracing. You can switch the tracer by `./run.sh dd` or `./run.sh otel`.
+- Supports both Datadog and OpenTelemetry tracing. You can switch the tracer by `APM_TARGET` environment variable.
 
 ### MySQL
 
@@ -70,3 +70,10 @@ Examples:
 
 - Collects traces, logs, and metrics from the containers.
 - DBM is enabled for MySQL.
+
+## Troubleshooting
+
+### MySQL
+
+- You can run any SQL query to the MySQL container by using `docker compose exec mysql mysql -ppassword -e "SQL_QUERY"`.
+- To reset the MySQL, you can use `docker compose stop mysql && docker compose rm -f mysql && docker compose up -d mysql`
