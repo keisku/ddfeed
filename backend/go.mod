@@ -21,7 +21,7 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.11.0
 	go.opentelemetry.io/otel/sdk/metric v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.73.0-rc.10
+	gopkg.in/DataDog/dd-trace-go.v1 v1.73.0
 )
 
 require (
