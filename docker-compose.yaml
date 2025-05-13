@@ -66,6 +66,12 @@ services:
       valkey:
         condition: service_started
     environment:
+      # Use `interpolateParams=true` to inline query parameters into SQL statements.
+      # This is required for Datadog Agent to capture full queries with parameters,
+      # and for queries to appear in MySQL's `performance_schema.events_statements_%`.
+      # Relevant info:
+      # - https://github.com/go-sql-driver/mysql/issues/413
+      # - https://stackoverflow.com/questions/37683218/golang-sql-drivers-prepare-statement
       - DDFEED_BACKEND_DATA_SOURCE_NAME=backend:password@tcp(mysql:3306)/ddfeed?interpolateParams=true # user:password@tcp(host:port)/database
       - DDFEED_BACKEND_PORT=8080
       # Datadog
