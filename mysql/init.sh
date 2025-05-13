@@ -53,9 +53,9 @@ GRANT EXECUTE ON PROCEDURE ddfeed.explain_statement TO 'datadog'@'%';
 "
 # https://docs.datadoghq.com/database_monitoring/setup_mysql/troubleshooting/#events-waits-current-not-enabled
 mysql -u root -p'password' -e "\
-  CREATE USER IF NOT EXISTS 'backend'@'%' IDENTIFIED BY 'password';\
-  GRANT ALL PRIVILEGES ON ddfeed.* TO 'backend'@'%';\
-  FLUSH PRIVILEGES;"
+CREATE USER IF NOT EXISTS 'backend'@'%' IDENTIFIED BY 'password';\
+GRANT ALL PRIVILEGES ON ddfeed.* TO 'backend'@'%';\
+FLUSH PRIVILEGES;"
 mysql -u root -p'password' -e "
 DROP PROCEDURE IF EXISTS ddfeed.enable_events_statements_consumers;
 DELIMITER $$
