@@ -103,6 +103,16 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 		if len(countKeys) > 0 {
 			if results, err := vk.Do(r.Context(), vk.B().Mget().Key(countKeys...).Build()).ToArray(); err == nil {
 				for i, result := range results {
+					if err := result.Error(); err != nil {
+						slog.ErrorContext(r.Context(), "get comment count from valkey, fallback to db", slog.Any("error", err))
+						if err := db.GetContext(r.Context(), &posts[i].CommentCount, "SELECT COUNT(*) FROM comment WHERE post_id = ?", posts[i].ID); err != nil {
+							slog.ErrorContext(r.Context(), "failed to get comment count from db", slog.Any("error", err))
+						}
+						if err := vk.Do(r.Context(), vk.B().Set().Key(countKeys[i]).Value(strconv.Itoa(posts[i].CommentCount)).Build()).Error(); err != nil {
+							slog.ErrorContext(r.Context(), "failed to set comment count in valkey", slog.Any("error", err))
+						}
+						continue
+					}
 					if count, err := result.AsInt64(); err == nil {
 						posts[i].CommentCount = int(count)
 					}
