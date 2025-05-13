@@ -16,8 +16,9 @@ const elements = {
 
 // State
 let currentPostId = null;
-let currentPage = 1;
-let totalPages = 1;
+let lastIdStack = [null]; // null for the first page
+let currentLastId = null;
+let nextLastId = null;
 const postsPerPage = 10;
 
 // API Functions
@@ -120,7 +121,6 @@ const ui = {
 
     showError(message) {
         console.error(message);
-        alert(message);
     },
 
     createPaginationControls() {
@@ -130,25 +130,20 @@ const ui = {
         // Previous button
         const prevButton = document.createElement('button');
         prevButton.textContent = '←';
-        prevButton.className = currentPage <= 1 ? 'disabled' : '';
+        prevButton.className = lastIdStack.length <= 1 ? 'disabled' : '';
         prevButton.onclick = () => {
-            if (currentPage > 1) changePage(currentPage - 1);
+            if (lastIdStack.length > 1) goToPrevPage();
         };
-        
-        // Page numbers
-        const pageInfo = document.createElement('span');
-        pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
         
         // Next button
         const nextButton = document.createElement('button');
         nextButton.textContent = '→';
-        nextButton.className = currentPage >= totalPages ? 'disabled' : '';
+        nextButton.className = !nextLastId ? 'disabled' : '';
         nextButton.onclick = () => {
-            if (currentPage < totalPages) changePage(currentPage + 1);
+            if (nextLastId) goToNextPage();
         };
         
         div.appendChild(prevButton);
-        div.appendChild(pageInfo);
         div.appendChild(nextButton);
         
         elements.pagination.innerHTML = '';
@@ -158,22 +153,23 @@ const ui = {
 
 // Event Handlers
 async function fetchPosts() {
-    try {
-        const response = await api.getPosts(currentPage, postsPerPage);
-        elements.postsList.innerHTML = '';
-        
-        if (Array.isArray(response.posts)) {
-            response.posts.forEach(post => {
-                elements.postsList.appendChild(ui.createPostElement(post));
-            });
-        }
-        
-        // Update pagination
-        totalPages = Math.ceil(response.total / postsPerPage);
-        ui.createPaginationControls();
-    } catch (error) {
-        console.error('Error fetching posts:', error);
+    const params = new URLSearchParams();
+    params.append('limit', postsPerPage);
+    if (currentLastId) params.append('last_id', currentLastId);
+
+    const response = await fetch(`${API_BASE}/posts?${params.toString()}`);
+    const data = await response.json();
+
+    elements.postsList.innerHTML = '';
+    
+    if (Array.isArray(data.posts)) {
+        data.posts.forEach(post => {
+            elements.postsList.appendChild(ui.createPostElement(post));
+        });
     }
+
+    nextLastId = data.next_last_id || null;
+    ui.createPaginationControls();
 }
 
 async function showPostDetail(id) {
@@ -199,12 +195,6 @@ async function deletePost(id) {
     } catch (error) {
         ui.showError('Failed to delete post');
     }
-}
-
-async function changePage(page) {
-    if (page < 1 || page > totalPages) return;
-    currentPage = page;
-    await fetchPosts();
 }
 
 // Event Listeners
@@ -254,3 +244,20 @@ window.deletePost = deletePost;
 
 // Initialize
 fetchPosts(); 
+
+// Pagination controls
+function goToNextPage() {
+    if (nextLastId) {
+        lastIdStack.push(nextLastId);
+        currentLastId = nextLastId;
+        fetchPosts();
+    }
+}
+
+function goToPrevPage() {
+    if (lastIdStack.length > 1) {
+        lastIdStack.pop();
+        currentLastId = lastIdStack[lastIdStack.length - 1];
+        fetchPosts();
+    }
+} 

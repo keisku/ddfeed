@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS comment (
     post_id INT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (post_id) REFERENCES post(id) ON DELETE CASCADE
+    FOREIGN KEY (post_id) REFERENCES post(id) ON DELETE CASCADE,
+    INDEX idx_comment_post_id (post_id)
 );
-CREATE INDEX idx_comment_post_id ON comment(post_id);
 "
 mysql -u root -p'password' -e "\
 GRANT REPLICATION CLIENT ON *.* TO 'datadog'@'%';

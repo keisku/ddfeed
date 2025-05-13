@@ -60,32 +60,33 @@ func Create(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 
 func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		if page < 1 {
-			slog.WarnContext(r.Context(), "page is less than 1, fallback to 1", slog.Int("page", page))
-			page = 1
-		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		if limit < 1 || limit > 100 {
-			slog.WarnContext(r.Context(), "limit is less than 1 or greater than 100, fallback to 10", slog.Int("limit", limit))
 			limit = 10
 		}
-		offset := (page - 1) * limit
 
+		lastIDStr := r.URL.Query().Get("last_id")
 		var posts []Post
-		if err := db.SelectContext(r.Context(), &posts,
-			"SELECT id, body FROM post ORDER BY id DESC LIMIT ? OFFSET ?",
-			limit, offset); err != nil {
+		var err error
+		if lastIDStr == "" {
+			err = db.SelectContext(r.Context(), &posts,
+				"SELECT id, body FROM post ORDER BY id DESC LIMIT ?",
+				limit)
+		} else {
+			lastID, _ := strconv.Atoi(lastIDStr)
+			err = db.SelectContext(r.Context(), &posts,
+				"SELECT id, body FROM post WHERE id < ? ORDER BY id DESC LIMIT ?",
+				lastID, limit)
+		}
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		var total int
 		if count, err := vk.Do(r.Context(), vk.B().Get().Key("post:total_count").Build()).AsInt64(); err == nil {
-			// Avoid full index scan.
 			total = int(count)
 		} else {
-			// If not in valkey, get from DB and cache it. Be aware that this is a full index scan.
 			if err := db.GetContext(r.Context(), &total, "SELECT COUNT(*) FROM post"); err != nil {
 				slog.ErrorContext(r.Context(), "failed to get total count", slog.Any("error", err))
 			} else {
@@ -99,24 +100,31 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 		for i := range posts {
 			countKeys[i] = fmt.Sprintf("post:%d:comment_count", posts[i].ID)
 		}
-		if results, err := vk.Do(r.Context(), vk.B().Mget().Key(countKeys...).Build()).ToArray(); err == nil {
-			for i, result := range results {
-				if count, err := result.AsInt64(); err == nil {
-					posts[i].CommentCount = int(count)
+		if len(countKeys) > 0 {
+			if results, err := vk.Do(r.Context(), vk.B().Mget().Key(countKeys...).Build()).ToArray(); err == nil {
+				for i, result := range results {
+					if count, err := result.AsInt64(); err == nil {
+						posts[i].CommentCount = int(count)
+					}
 				}
 			}
 		}
 
+		var nextLastID int
+		if len(posts) > 0 {
+			nextLastID = posts[len(posts)-1].ID
+		}
+
 		response := struct {
-			Posts []Post `json:"posts"`
-			Page  int    `json:"page"`
-			Limit int    `json:"limit"`
-			Total int    `json:"total"`
+			Posts      []Post `json:"posts"`
+			Limit      int    `json:"limit"`
+			Total      int    `json:"total"`
+			NextLastID int    `json:"next_last_id,omitempty"`
 		}{
-			Posts: posts,
-			Page:  page,
-			Limit: limit,
-			Total: total,
+			Posts:      posts,
+			Limit:      limit,
+			Total:      total,
+			NextLastID: nextLastID,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
