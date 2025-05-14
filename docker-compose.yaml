@@ -105,7 +105,10 @@ services:
                 "username": "datadog",
                 "password": "datadog",
                 "reported_hostname": "ddfeed",
-                "dbm": true
+                "dbm": true,
+                "collect_settings": {
+                  "enabled": true
+                }
               }
             ]
           }
