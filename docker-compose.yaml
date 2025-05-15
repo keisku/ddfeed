@@ -19,10 +19,10 @@ services:
       - DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE=100
       - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT=0.0.0.0:4317
       - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318
-      - DD_INTERNAL_PROFILING_ENABLED=true
-      - DD_INTEGRATION_TRACING=false
-      - DD_INTEGRATION_PROFILING=false
       - DD_OTLP_CONFIG_DEBUG_VERBOSITY=detailed
+      - DD_INTERNAL_PROFILING_ENABLED=true # Profiling for the Datadog Agent.
+      - DD_INTEGRATION_TRACING=false # Tracing for the Datadog Agent's integrations. E.g., mysql check.
+      - DD_INTEGRATION_PROFILING=false # Profiling for the Datadog Agent's integrations. E.g., mysql check.
     env_file:
       - .env
   frontend:
@@ -80,6 +80,7 @@ services:
       - DD_TRACE_STARTUP_LOGS=false
       - DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED=true
       - DD_DBM_PROPAGATION_MODE=full
+      - DD_PROFILING_ENABLED=true
       # OTel
       - OTEL_EXPORTER_OTLP_ENDPOINT=agent:4317
       - OTEL_SERVICE_NAME=ddfeed-backend
