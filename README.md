@@ -5,6 +5,7 @@
 This is a simple web application that enables you to test Datadog products such as APM, DBM, Logs, RUM, etc.
 
 ![ddfeed architecture](./ddfeed.png)
+![ddfeed webui](./ddfeed.gif)
 
 ## Prerequisites
 
