@@ -163,13 +163,30 @@ async function fetchPosts() {
 
     elements.postsList.innerHTML = '';
     
+    let posts = [];
     if (Array.isArray(data.posts)) {
+        posts = data.posts;
         data.posts.forEach(post => {
             elements.postsList.appendChild(ui.createPostElement(post));
         });
     }
 
-    nextLastId = data.next_last_id || null;
+    // Peek ahead if needed
+    if (posts.length === postsPerPage && data.next_last_id) {
+        // Peek the next page
+        const peekParams = new URLSearchParams();
+        peekParams.append('limit', postsPerPage);
+        peekParams.append('last_id', data.next_last_id);
+        const peekResponse = await fetch(`${API_BASE}/posts?${peekParams.toString()}`);
+        const peekData = await peekResponse.json();
+        if (Array.isArray(peekData.posts) && peekData.posts.length > 0) {
+            nextLastId = data.next_last_id;
+        } else {
+            nextLastId = null;
+        }
+    } else {
+        nextLastId = null;
+    }
     ui.createPaginationControls();
     updateUrlForPage();
 }
@@ -254,11 +271,11 @@ fetchPosts();
 
 // Pagination controls
 function goToNextPage() {
-    if (nextLastId) {
-        lastIdStack.push(nextLastId);
-        currentLastId = nextLastId;
-        fetchPosts();
-    }
+    // Block navigation if there is no next page
+    if (!nextLastId) return;
+    lastIdStack.push(nextLastId);
+    currentLastId = nextLastId;
+    fetchPosts();
 }
 
 function goToPrevPage() {
