@@ -185,12 +185,39 @@ button:active {
     gap: 16px;
     font-size: 14px;
     color: var(--text-secondary);
+    justify-content: space-between;
+    position: relative;
 }
 
-.post-meta .comment-count {
+.post-meta .delete {
+    all: unset;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--delete);
+    padding: 6px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.post-meta .delete svg {
+    stroke: var(--delete);
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+.post-meta .delete:hover {
+    background: var(--delete-hover);
+    color: #fff;
+}
+.post-meta .delete:hover svg {
+    stroke: #fff;
 }
 
 .post-actions {
@@ -206,14 +233,6 @@ button:active {
 
 .post-actions button:hover {
     background: var(--primary-hover);
-}
-
-.post-actions button.delete {
-    background: var(--delete);
-}
-
-.post-actions button.delete:hover {
-    background: var(--delete-hover);
 }
 
 /* Invert comment button color based on comment count */
