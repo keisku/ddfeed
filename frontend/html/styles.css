@@ -216,6 +216,28 @@ button:active {
     background: var(--delete-hover);
 }
 
+/* Invert comment button color based on comment count */
+.post-actions .view.no-comments {
+    background: #fff;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+}
+.post-actions .view.no-comments:hover {
+    background: var(--primary-light);
+    color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+.post-actions .view.has-comments {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+}
+.post-actions .view.has-comments:hover {
+    background: var(--primary-hover);
+    color: #fff;
+}
+
 /* Modal styles */
 #post-detail {
     position: fixed;
@@ -271,7 +293,6 @@ button:active {
 
 .no-comments {
     color: var(--text-secondary);
-    font-style: italic;
     padding: 12px;
     text-align: center;
     background: var(--bg-light);

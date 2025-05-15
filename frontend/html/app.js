@@ -67,13 +67,24 @@ const ui = {
         const div = document.createElement('div');
         div.className = 'post-item';
         const commentCount = post.comment_count || 0;
+        let commentLabel = '';
+        let commentClass = '';
+        if (commentCount === 0) {
+            commentLabel = 'Comment';
+            commentClass = 'no-comments';
+        } else if (commentCount === 1) {
+            commentLabel = '1 comment';
+            commentClass = 'has-comments';
+        } else {
+            commentLabel = `${commentCount} comments`;
+            commentClass = 'has-comments';
+        }
         div.innerHTML = `
             <div class="post-content">
                 <div class="post-body-text">${post.body}</div>
                 <div class="post-meta">
-                    <span class="comment-count">${commentCount} comments</span>
                     <span class="post-actions">
-                        <button class="view" onclick="(() => showPostDetail(${post.id}))()">Comments</button>
+                        <button class="view ${commentClass}" onclick="(() => showPostDetail(${post.id}))()">${commentLabel}</button>
                         <button class="delete" onclick="deletePost(${post.id})">Delete</button>
                     </span>
                 </div>
