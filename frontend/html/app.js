@@ -112,6 +112,7 @@ const ui = {
         document.body.classList.remove('modal-open');
         document.body.style.overflow = '';
         currentPostId = null;
+        history.pushState({ type: 'page' }, '', '/posts');
     },
 
     resetCommentForm() {
@@ -170,6 +171,7 @@ async function fetchPosts() {
 
     nextLastId = data.next_last_id || null;
     ui.createPaginationControls();
+    updateUrlForPage();
 }
 
 async function showPostDetail(id) {
@@ -179,6 +181,11 @@ async function showPostDetail(id) {
         ui.updatePostDetail(post);
         ui.resetCommentForm();
         ui.showModal();
+        // Only update the URL if it's not already /posts/:id
+        const expectedPath = `/posts/${id}`;
+        if (window.location.pathname !== expectedPath) {
+            updateUrlForPostDetail(id);
+        }
     } catch (error) {
         ui.showError('Failed to load post details');
     }
@@ -243,7 +250,7 @@ elements.addCommentForm.addEventListener('submit', async (event) => {
 window.deletePost = deletePost;
 
 // Initialize
-fetchPosts(); 
+fetchPosts();
 
 // Pagination controls
 function goToNextPage() {
@@ -260,4 +267,78 @@ function goToPrevPage() {
         currentLastId = lastIdStack[lastIdStack.length - 1];
         fetchPosts();
     }
-} 
+}
+
+
+function updateUrlForPage() {
+    const params = new URLSearchParams();
+    params.append('limit', postsPerPage);
+    if (currentLastId) params.append('last_id', currentLastId);
+    history.pushState({ type: 'page', lastId: currentLastId }, '', `?${params.toString()}`);
+}
+
+function updateUrlForPostDetail(postId) {
+    history.pushState({ type: 'post', postId }, '', `/posts/${postId}`);
+}
+
+// Helper: Find and load the page containing a specific post ID
+async function loadPageContainingPost(postId) {
+    let lastId = null;
+    let found = false;
+    let pagePosts = [];
+    let pageStack = [null];
+    while (!found) {
+        const params = new URLSearchParams();
+        params.append('limit', postsPerPage);
+        if (lastId) params.append('last_id', lastId);
+        const response = await fetch(`${API_BASE}/posts?${params.toString()}`);
+        const data = await response.json();
+        if (!Array.isArray(data.posts) || data.posts.length === 0) break;
+        pagePosts = data.posts;
+        if (pagePosts.some(post => post.id === postId)) {
+            found = true;
+            break;
+        }
+        if (!data.next_last_id) break;
+        lastId = data.next_last_id;
+        pageStack.push(lastId);
+    }
+    if (found) {
+        lastIdStack = [...pageStack];
+        currentLastId = lastIdStack[lastIdStack.length - 1];
+    } else {
+        lastIdStack = [null];
+        currentLastId = null;
+    }
+}
+
+function restoreFromUrl() {
+    const path = window.location.pathname;
+    const search = window.location.search;
+    if (path === '/' || path === '') {
+        history.replaceState({ type: 'page' }, '', '/posts');
+        return;
+    }
+    if (path.startsWith('/posts/') && /^\/posts\/\d+$/.test(path)) {
+        // Post detail
+        const postId = parseInt(path.split('/')[2], 10);
+        loadPageContainingPost(postId).then(() => {
+            fetchPosts().then(() => showPostDetail(postId));
+        });
+    } else {
+        // Pagination
+        const params = new URLSearchParams(search);
+        const lastId = params.get('last_id');
+        currentLastId = lastId;
+        // Rebuild lastIdStack for back/forward navigation
+        lastIdStack = [null];
+        if (lastId) lastIdStack.push(lastId);
+        fetchPosts();
+    }
+}
+
+window.onpopstate = function(event) {
+    restoreFromUrl();
+};
+
+restoreFromUrl(); 
