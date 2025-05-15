@@ -16,7 +16,7 @@ const elements = {
 
 // State
 let currentPostId = null;
-let lastIdStack = [null]; // null for the first page
+let lastIdStack = [null]; // Stack supports back/prev navigation for cursor-based pagination
 let currentLastId = null;
 let nextLastId = null;
 const postsPerPage = 10;
@@ -24,6 +24,7 @@ const postsPerPage = 10;
 // API Functions
 const api = {
     async getPosts(page = 1, limit = postsPerPage) {
+        // Kept for possible future use, but the UI uses cursor-based pagination
         const response = await fetch(`${API_BASE}/posts?page=${page}&limit=${limit}`);
         if (!response.ok) throw new Error('Failed to fetch posts');
         return response.json();
@@ -64,6 +65,7 @@ const api = {
 // UI Functions
 const ui = {
     createPostElement(post) {
+        // Inline event handlers are used for simplicity; in a larger app, delegation is preferred
         const div = document.createElement('div');
         div.className = 'post-item';
         const commentCount = post.comment_count || 0;
@@ -94,6 +96,7 @@ const ui = {
     },
 
     updatePostDetail(post) {
+        // Always update modal content to ensure fresh data after comment creation
         elements.postContent.innerHTML = `
             <div class="post-detail-content">
                 <p id="post-body-text">${post.body}</p>
@@ -112,6 +115,7 @@ const ui = {
     },
 
     showModal() {
+        // Modal keeps the user on the same page context
         elements.postDetail.classList.remove('hidden');
         elements.postDetail.style.display = 'block';
         document.body.classList.add('modal-open');
@@ -119,6 +123,7 @@ const ui = {
     },
 
     hideModal() {
+        // Reset modal state and update the URL to reflect the post list view
         elements.postDetail.classList.add('hidden');
         document.body.classList.remove('modal-open');
         document.body.style.overflow = '';
@@ -127,19 +132,22 @@ const ui = {
     },
 
     resetCommentForm() {
+        // Reset the comment form after a comment is added or modal is opened
         elements.commentBodyInput.value = '';
         elements.addCommentForm.style.display = 'flex';
     },
 
     showError(message) {
+        // Log errors to the console for debugging; in production, show user-friendly messages
         console.error(message);
     },
 
     createPaginationControls() {
+        // Always show both buttons for consistent UI, but disable them as needed
         const div = document.createElement('div');
         div.className = 'pagination';
         
-        // Previous button
+        // Previous button is disabled on the first page (stack length 1)
         const prevButton = document.createElement('button');
         prevButton.textContent = '←';
         prevButton.className = lastIdStack.length <= 1 ? 'disabled' : '';
@@ -147,7 +155,7 @@ const ui = {
             if (lastIdStack.length > 1) goToPrevPage();
         };
         
-        // Next button
+        // Next button is disabled if there are no more posts (see fetchPosts for logic)
         const nextButton = document.createElement('button');
         nextButton.textContent = '→';
         nextButton.className = !nextLastId ? 'disabled' : '';
@@ -165,6 +173,7 @@ const ui = {
 
 // Event Handlers
 async function fetchPosts() {
+    // Peek ahead to the next page to avoid enabling the next button if the next page is empty
     const params = new URLSearchParams();
     params.append('limit', postsPerPage);
     if (currentLastId) params.append('last_id', currentLastId);
@@ -182,9 +191,8 @@ async function fetchPosts() {
         });
     }
 
-    // Peek ahead if needed
+    // Peek ahead to ensure the next button is only enabled if the next page has posts
     if (posts.length === postsPerPage && data.next_last_id) {
-        // Peek the next page
         const peekParams = new URLSearchParams();
         peekParams.append('limit', postsPerPage);
         peekParams.append('last_id', data.next_last_id);
@@ -204,12 +212,13 @@ async function fetchPosts() {
 
 async function showPostDetail(id) {
     try {
+        // Always fetch the latest post details to reflect new comments or deletions
         const post = await api.getPostDetail(id);
         currentPostId = id;
         ui.updatePostDetail(post);
         ui.resetCommentForm();
         ui.showModal();
-        // Only update the URL if it's not already /posts/:id
+        // Only update the URL if it's not already /posts/:id to avoid history loops and duplicate fetches
         const expectedPath = `/posts/${id}`;
         if (window.location.pathname !== expectedPath) {
             updateUrlForPostDetail(id);
@@ -222,6 +231,7 @@ async function showPostDetail(id) {
 async function deletePost(id) {
     if (!confirm('Delete this post?')) return;
     try {
+        // After deletion, always refresh the post list to reflect the change
         await api.deletePost(id);
         await fetchPosts();
         if (currentPostId === id) {
@@ -233,6 +243,9 @@ async function deletePost(id) {
 }
 
 // Event Listeners
+// Use event delegation for modal close to allow clicking outside the modal to close it
+// but not when clicking inside or on the view button
+// This improves UX by making the modal easy to dismiss
 document.addEventListener('click', (event) => {
     if (!elements.postDetail.classList.contains('hidden') && 
         !elements.postDetail.contains(event.target) && 
@@ -249,7 +262,6 @@ elements.addPostForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = elements.postBodyInput.value.trim();
     if (!body) return;
-    
     try {
         await api.createPost(body);
         elements.postBodyInput.value = '';
@@ -263,7 +275,6 @@ elements.addCommentForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = elements.commentBodyInput.value.trim();
     if (!body || !currentPostId) return;
-    
     try {
         await api.createComment(currentPostId, body);
         elements.commentBodyInput.value = '';
@@ -274,15 +285,12 @@ elements.addCommentForm.addEventListener('submit', async (event) => {
     }
 });
 
-// Make deletePost available globally
+// Expose deletePost globally for use in inline event handlers
 window.deletePost = deletePost;
-
-// Initialize
-fetchPosts();
 
 // Pagination controls
 function goToNextPage() {
-    // Block navigation if there is no next page
+    // Block navigation if there is no next page, to prevent empty page views
     if (!nextLastId) return;
     lastIdStack.push(nextLastId);
     currentLastId = nextLastId;
@@ -290,6 +298,7 @@ function goToNextPage() {
 }
 
 function goToPrevPage() {
+    // Only allow going back if there is a previous page in the stack
     if (lastIdStack.length > 1) {
         lastIdStack.pop();
         currentLastId = lastIdStack[lastIdStack.length - 1];
@@ -297,8 +306,8 @@ function goToPrevPage() {
     }
 }
 
-
 function updateUrlForPage() {
+    // Always update the URL to reflect the current pagination state for shareability and navigation
     const params = new URLSearchParams();
     params.append('limit', postsPerPage);
     if (currentLastId) params.append('last_id', currentLastId);
@@ -306,11 +315,13 @@ function updateUrlForPage() {
 }
 
 function updateUrlForPostDetail(postId) {
+    // Use pushState to allow browser navigation and deep linking to post details
     history.pushState({ type: 'post', postId }, '', `/posts/${postId}`);
 }
 
 // Helper: Find and load the page containing a specific post ID
 async function loadPageContainingPost(postId) {
+    // Find the correct page for a post so the background list matches the detail
     let lastId = null;
     let found = false;
     let pagePosts = [];
@@ -341,24 +352,25 @@ async function loadPageContainingPost(postId) {
 }
 
 function restoreFromUrl() {
+    // Handle all routing here to support deep links, browser navigation, and SPA behavior
     const path = window.location.pathname;
     const search = window.location.search;
     if (path === '/' || path === '') {
+        // Always redirect / to /posts for consistency and shareability
         history.replaceState({ type: 'page' }, '', '/posts');
         return;
     }
     if (path.startsWith('/posts/') && /^\/posts\/\d+$/.test(path)) {
-        // Post detail
+        // When accessing a post detail, ensure the background list is the correct page
         const postId = parseInt(path.split('/')[2], 10);
         loadPageContainingPost(postId).then(() => {
             fetchPosts().then(() => showPostDetail(postId));
         });
     } else {
-        // Pagination
+        // For pagination, restore the correct page from the URL
         const params = new URLSearchParams(search);
         const lastId = params.get('last_id');
         currentLastId = lastId;
-        // Rebuild lastIdStack for back/forward navigation
         lastIdStack = [null];
         if (lastId) lastIdStack.push(lastId);
         fetchPosts();
@@ -366,7 +378,9 @@ function restoreFromUrl() {
 }
 
 window.onpopstate = function(event) {
+    // Listen for browser navigation to keep UI and URL in sync
     restoreFromUrl();
 };
 
+// On initial load, restore state from the URL for deep linking and refresh support
 restoreFromUrl(); 
