@@ -8,21 +8,22 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/valkey-io/valkey-go"
 )
 
 type Post struct {
-	ID           int       `db:"id" json:"id"`
+	UUID         string    `db:"uuid" json:"uuid"`
 	Body         string    `db:"body" json:"body"`
 	Comments     []Comment `json:"comments,omitempty"`
 	CommentCount int       `json:"comment_count"`
 }
 
 type Comment struct {
-	ID     int    `db:"id" json:"id"`
+	UUID   string `db:"uuid" json:"uuid"`
 	Body   string `db:"body" json:"body"`
-	PostID int    `db:"post_id" json:"post_id"`
+	PostID string `db:"post_id" json:"post_id"`
 }
 
 func Create(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
@@ -32,27 +33,26 @@ func Create(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := db.ExecContext(r.Context(), "INSERT INTO post (body) VALUES (?)", post.Body)
+		post.UUID = uuid.New().String()
+		result, err := db.ExecContext(r.Context(), "INSERT INTO post (uuid, body) VALUES (UUID_TO_BIN(?), ?)", post.UUID, post.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		id, err := result.LastInsertId()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		if err == nil {
+			if err := vk.Do(r.Context(), vk.B().Set().Key(fmt.Sprintf("post_pk:%s", post.UUID)).Value(strconv.FormatInt(id, 10)).Build()).Error(); err != nil {
+				slog.ErrorContext(r.Context(), "failed to set post pk in valkey", slog.Any("error", err))
+			}
+		} else {
+			slog.ErrorContext(r.Context(), "failed to get last insert id", slog.Any("error", err))
 		}
-		if err := vk.Do(r.Context(), vk.B().Set().Key(fmt.Sprintf("post:%d", id)).Value(post.Body).Build()).Error(); err != nil {
+		if err := vk.Do(r.Context(), vk.B().Set().Key("post:"+post.UUID).Value(post.Body).Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to set post in valkey", slog.Any("error", err))
-		}
-		countKey := fmt.Sprintf("post:%d:comment_count", id)
-		if err := vk.Do(r.Context(), vk.B().Set().Key(countKey).Value("0").Build()).Error(); err != nil {
-			slog.ErrorContext(r.Context(), "failed to set comment count in valkey", slog.Any("error", err))
 		}
 		if err := vk.Do(r.Context(), vk.B().Incr().Key("post:total_count").Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to increment total post count in valkey", slog.Any("error", err))
 		}
-		post.ID = int(id)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(post)
 	}
@@ -64,25 +64,22 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 		if limit < 1 || limit > 100 {
 			limit = 10
 		}
-
-		lastIDStr := r.URL.Query().Get("last_id")
+		lastUUID := r.URL.Query().Get("last_uuid")
 		var posts []Post
 		var err error
-		if lastIDStr == "" {
+		if lastUUID == "" {
 			err = db.SelectContext(r.Context(), &posts,
-				"SELECT id, body FROM post ORDER BY id DESC LIMIT ?",
+				"SELECT BIN_TO_UUID(uuid) as uuid, body FROM post ORDER BY id DESC LIMIT ?",
 				limit)
 		} else {
-			lastID, _ := strconv.Atoi(lastIDStr)
 			err = db.SelectContext(r.Context(), &posts,
-				"SELECT id, body FROM post WHERE id < ? ORDER BY id DESC LIMIT ?",
-				lastID, limit)
+				"SELECT BIN_TO_UUID(uuid) as uuid, body FROM post WHERE id < (SELECT id FROM post WHERE uuid = UUID_TO_BIN(?)) ORDER BY id DESC LIMIT ?",
+				lastUUID, limit)
 		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 		var total int
 		if count, err := vk.Do(r.Context(), vk.B().Get().Key("post:total_count").Build()).AsInt64(); err == nil {
 			total = int(count)
@@ -95,17 +92,16 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 				}
 			}
 		}
-
 		countKeys := make([]string, len(posts))
 		for i := range posts {
-			countKeys[i] = fmt.Sprintf("post:%d:comment_count", posts[i].ID)
+			countKeys[i] = "post:" + posts[i].UUID + ":comment_count"
 		}
 		if len(countKeys) > 0 {
 			if results, err := vk.Do(r.Context(), vk.B().Mget().Key(countKeys...).Build()).ToArray(); err == nil {
 				for i, result := range results {
 					if err := result.Error(); err != nil {
 						slog.ErrorContext(r.Context(), "get comment count from valkey, fallback to db", slog.Any("error", err))
-						if err := db.GetContext(r.Context(), &posts[i].CommentCount, "SELECT COUNT(*) FROM comment WHERE post_id = ?", posts[i].ID); err != nil {
+						if err := db.GetContext(r.Context(), &posts[i].CommentCount, "SELECT COUNT(*) FROM comment WHERE post_id = (SELECT id FROM post WHERE uuid = UUID_TO_BIN(?))", posts[i].UUID); err != nil {
 							slog.ErrorContext(r.Context(), "failed to get comment count from db", slog.Any("error", err))
 						}
 						if err := vk.Do(r.Context(), vk.B().Set().Key(countKeys[i]).Value(strconv.Itoa(posts[i].CommentCount)).Build()).Error(); err != nil {
@@ -119,24 +115,21 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 				}
 			}
 		}
-
-		var nextLastID int
+		var nextLastUUID string
 		if len(posts) > 0 {
-			nextLastID = posts[len(posts)-1].ID
+			nextLastUUID = posts[len(posts)-1].UUID
 		}
-
 		response := struct {
 			Posts      []Post `json:"posts"`
 			Limit      int    `json:"limit"`
 			Total      int    `json:"total"`
-			NextLastID int    `json:"next_last_id,omitempty"`
+			NextLastID string `json:"next_last_uuid,omitempty"`
 		}{
 			Posts:      posts,
 			Limit:      limit,
 			Total:      total,
-			NextLastID: nextLastID,
+			NextLastID: nextLastUUID,
 		}
-
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}
@@ -144,20 +137,19 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 
 func GetByID(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		uuidStr := r.PathValue("uuid")
+		if uuidStr == "" {
+			http.Error(w, "missing uuid", http.StatusBadRequest)
 			return
 		}
 		var post Post
-		if bytes, err := vk.Do(r.Context(), vk.B().Get().Key(fmt.Sprintf("post:%d", id)).Build()).AsBytes(); err == nil {
+		if bytes, err := vk.Do(r.Context(), vk.B().Get().Key(fmt.Sprintf("post:%s", uuidStr)).Build()).AsBytes(); err == nil {
 			post = Post{
-				ID:   int(id),
+				UUID: uuidStr,
 				Body: string(bytes),
 			}
-		}
-		if post.ID == 0 {
-			if err := db.GetContext(r.Context(), &post, "SELECT id, body FROM post WHERE id = ?", id); err != nil {
+		} else {
+			if err := db.GetContext(r.Context(), &post, "SELECT body FROM post WHERE uuid = UUID_TO_BIN(?)", uuidStr); err != nil {
 				if err == sql.ErrNoRows {
 					http.Error(w, "no post found", http.StatusNotFound)
 					return
@@ -167,13 +159,20 @@ func GetByID(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 			}
 		}
 		var comments []Comment
-		if err := db.SelectContext(r.Context(), &comments, "SELECT id, body, post_id FROM comment WHERE post_id = ?", id); err == nil {
+		if err := db.SelectContext(r.Context(), &comments, "SELECT uuid, body, post_id FROM comment WHERE post_id = (SELECT id FROM post WHERE uuid = UUID_TO_BIN(?))", uuidStr); err == nil {
 			post.Comments = comments
 			post.CommentCount = len(comments)
 		} else {
-			slog.ErrorContext(r.Context(), "failed to fetch comments from db", slog.Any("error", err))
+			if err == sql.ErrNoRows {
+				post.Comments = []Comment{}
+				post.CommentCount = 0
+			} else {
+				slog.ErrorContext(r.Context(), "failed to fetch comments from db", slog.Any("error", err))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
-		countKey := fmt.Sprintf("post:%d:comment_count", id)
+		countKey := fmt.Sprintf("post:%s:comment_count", uuidStr)
 		if err := vk.Do(r.Context(), vk.B().Set().Key(countKey).Value(strconv.Itoa(post.CommentCount)).Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to set comment count in valkey", slog.Any("error", err))
 		}
@@ -184,19 +183,22 @@ func GetByID(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 
 func Delete(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		uuidStr := r.PathValue("uuid")
+		if uuidStr == "" {
+			http.Error(w, "missing uuid", http.StatusBadRequest)
 			return
 		}
-		if _, err := db.ExecContext(r.Context(), "DELETE FROM post WHERE id = ?", id); err != nil {
+		if _, err := db.ExecContext(r.Context(), "DELETE FROM post WHERE uuid = UUID_TO_BIN(?)", uuidStr); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%d", id)).Build()).Error(); err != nil {
+		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%s", uuidStr)).Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to delete post in valkey", slog.Any("error", err))
 		}
-		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%d:comment_count", id)).Build()).Error(); err != nil {
+		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post_pk:%s", uuidStr)).Build()).Error(); err != nil {
+			slog.ErrorContext(r.Context(), "failed to delete post pk in valkey", slog.Any("error", err))
+		}
+		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%s:comment_count", uuidStr)).Build()).Error(); err != nil {
 			slog.ErrorContext(r.Context(), "failed to delete comment count in valkey", slog.Any("error", err))
 		}
 		if err := vk.Do(r.Context(), vk.B().Decr().Key("post:total_count").Build()).Error(); err != nil {
@@ -208,52 +210,42 @@ func Delete(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 
 func AddComment(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		postID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		postUUID := r.PathValue("uuid")
+		if postUUID == "" {
+			http.Error(w, "missing uuid", http.StatusBadRequest)
 			return
 		}
-		var post Post
-		if err := db.GetContext(r.Context(), &post, "SELECT id, body FROM post WHERE id = ?", postID); err != nil {
-			if err == sql.ErrNoRows {
-				slog.ErrorContext(r.Context(), "no post found", slog.Int64("post_id", postID))
-				w.WriteHeader(http.StatusNotFound)
+		var postID int
+		pkKey := fmt.Sprintf("post_pk:%s", postUUID)
+		if pkStr, err := vk.Do(r.Context(), vk.B().Get().Key(pkKey).Build()).AsBytes(); err == nil {
+			postID, err = strconv.Atoi(string(pkStr))
+		} else {
+			if err := db.GetContext(r.Context(), &postID, "SELECT id FROM post WHERE uuid = UUID_TO_BIN(?)", postUUID); err != nil {
+				if err == sql.ErrNoRows {
+					http.Error(w, "no post found", http.StatusNotFound)
+					return
+				}
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			if err := vk.Do(r.Context(), vk.B().Set().Key(pkKey).Value(strconv.Itoa(postID)).Build()).Error(); err != nil {
+				slog.ErrorContext(r.Context(), "failed to set post pk in valkey", slog.Any("error", err))
+			}
 		}
 		var comment Comment
 		if err := json.NewDecoder(r.Body).Decode(&comment); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := db.ExecContext(r.Context(), "INSERT INTO comment (body, post_id) VALUES (?, ?)", comment.Body, postID)
+		comment.UUID = uuid.New().String()
+		_, err := db.ExecContext(r.Context(), "INSERT INTO comment (uuid, body, post_id) VALUES (UUID_TO_BIN(?), ?, ?)", comment.UUID, comment.Body, postID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		commentID, err := result.LastInsertId()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		if err := vk.Do(r.Context(), vk.B().Incr().Key(fmt.Sprintf("post:%s:comment_count", postUUID)).Build()).Error(); err != nil {
+			slog.ErrorContext(r.Context(), "failed to increment comment count in valkey", slog.Any("error", err))
 		}
-		comment.ID = int(commentID)
-		comment.PostID = int(postID)
-
-		// Increment comment counter in valkey
-		countKey := fmt.Sprintf("post:%d:comment_count", postID)
-		count, err := vk.Do(r.Context(), vk.B().Get().Key(countKey).Build()).AsInt64()
-		if err != nil {
-			// If key doesn't exist, initialize with 1
-			count = 1
-		} else {
-			count++
-		}
-		if err := vk.Do(r.Context(), vk.B().Set().Key(countKey).Value(strconv.FormatInt(count, 10)).Build()).Error(); err != nil {
-			slog.ErrorContext(r.Context(), "failed to update comment count in valkey", slog.Any("error", err))
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(comment)
 	}
