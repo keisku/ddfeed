@@ -6,8 +6,8 @@ require (
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/XSAM/otelsql v0.38.0
 	github.com/go-sql-driver/mysql v1.9.2
-	github.com/google/uuid v1.6.0
 	github.com/jmoiron/sqlx v1.4.0
+	github.com/oklog/ulid/v2 v2.1.0
 	github.com/valkey-io/valkey-go v1.0.60
 	github.com/valkey-io/valkey-go/valkeyotel v1.0.60
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
@@ -129,6 +129,7 @@ require (
 	github.com/google/go-tpm v0.9.3 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect

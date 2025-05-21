@@ -5,22 +5,22 @@ mysql -u root -p'password' -e "
 USE \`ddfeed\`;
 CREATE TABLE IF NOT EXISTS post (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    uuid BINARY(16) NOT NULL,
+    public_id CHAR(26) NOT NULL,
     body TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY idx_post_uuid (uuid)
+    UNIQUE KEY idx_post_public_id (public_id)
 );
 CREATE TABLE IF NOT EXISTS comment (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    uuid BINARY(16) NOT NULL,
+    public_id CHAR(26) NOT NULL,
     body TEXT,
     post_id INT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES post(id) ON DELETE CASCADE,
     INDEX idx_comment_post_id (post_id),
-    UNIQUE KEY idx_comment_uuid (uuid)
+    UNIQUE KEY idx_comment_public_id (public_id)
 );
 "
 mysql -u root -p'password' -e "\

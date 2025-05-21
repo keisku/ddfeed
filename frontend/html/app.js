@@ -15,10 +15,10 @@ const elements = {
 };
 
 // State
-let currentPostUUID = null;
-let lastUUIDStack = [null]; // Stack supports back/prev navigation for cursor-based pagination
-let currentLastUUID = null;
-let nextLastUUID = null;
+let currentPostID = null;
+let lastIDStack = [null]; // Stack supports back/prev navigation for cursor-based pagination
+let currentLastID = null;
+let nextLastID = null;
 const postsPerPage = 10;
 
 // API Functions
@@ -30,8 +30,8 @@ const api = {
         return response.json();
     },
 
-    async getPostDetail(uuid) {
-        const response = await fetch(`${API_BASE}/posts/${uuid}`);
+    async getPostDetail(id) {
+        const response = await fetch(`${API_BASE}/posts/${id}`);
         if (!response.ok) throw new Error('Failed to fetch post details');
         return response.json();
     },
@@ -46,8 +46,8 @@ const api = {
         return response.json();
     },
 
-    async createComment(postUUID, body) {
-        const response = await fetch(`${API_BASE}/posts/${postUUID}/comment`, {
+    async createComment(postID, body) {
+        const response = await fetch(`${API_BASE}/posts/${postID}/comment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ body })
@@ -56,8 +56,8 @@ const api = {
         return response.json();
     },
 
-    async deletePost(uuid) {
-        const response = await fetch(`${API_BASE}/posts/${uuid}`, { method: 'DELETE' });
+    async deletePost(id) {
+        const response = await fetch(`${API_BASE}/posts/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete post');
     }
 };
@@ -86,9 +86,9 @@ const ui = {
                 <div class="post-body-text">${post.body}</div>
                 <div class="post-meta">
                     <span class="post-actions">
-                        <button class="view ${commentClass}" onclick="(() => showPostDetail('${post.uuid}'))()">${commentLabel}</button>
+                        <button class="view ${commentClass}" onclick="(() => showPostDetail('${post.id}'))()">${commentLabel}</button>
                     </span>
-                    <button class="delete" onclick="deletePost('${post.uuid}')" aria-label="Delete post">
+                    <button class="delete" onclick="deletePost('${post.id}')" aria-label="Delete post">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                     </button>
                 </div>
@@ -129,7 +129,7 @@ const ui = {
         elements.postDetail.classList.add('hidden');
         document.body.classList.remove('modal-open');
         document.body.style.overflow = '';
-        currentPostUUID = null;
+        currentPostID = null;
         history.pushState({ type: 'page' }, '', '/posts');
     },
 
@@ -152,17 +152,17 @@ const ui = {
         // Previous button is disabled on the first page (stack length 1)
         const prevButton = document.createElement('button');
         prevButton.textContent = '←';
-        prevButton.className = lastUUIDStack.length <= 1 ? 'disabled' : '';
+        prevButton.className = lastIDStack.length <= 1 ? 'disabled' : '';
         prevButton.onclick = () => {
-            if (lastUUIDStack.length > 1) goToPrevPage();
+            if (lastIDStack.length > 1) goToPrevPage();
         };
         
         // Next button is disabled if there are no more posts (see fetchPosts for logic)
         const nextButton = document.createElement('button');
         nextButton.textContent = '→';
-        nextButton.className = !nextLastUUID ? 'disabled' : '';
+        nextButton.className = !nextLastID ? 'disabled' : '';
         nextButton.onclick = () => {
-            if (nextLastUUID) goToNextPage();
+            if (nextLastID) goToNextPage();
         };
         
         div.appendChild(prevButton);
@@ -177,7 +177,7 @@ const ui = {
 async function fetchPosts() {
     const params = new URLSearchParams();
     params.append('limit', postsPerPage);
-    if (currentLastUUID) params.append('last_uuid', currentLastUUID);
+    if (currentLastID) params.append('last_id', currentLastID);
 
     const response = await fetch(`${API_BASE}/posts?${params.toString()}`);
     const data = await response.json();
@@ -192,46 +192,46 @@ async function fetchPosts() {
     }
 
     // Peek ahead to ensure the next button is only enabled if the next page has posts
-    if (posts.length === postsPerPage && data.next_last_uuid) {
+    if (posts.length === postsPerPage && data.next_last_id) {
         const peekParams = new URLSearchParams();
         peekParams.append('limit', postsPerPage);
-        peekParams.append('last_uuid', data.next_last_uuid);
+        peekParams.append('last_id', data.next_last_id);
         const peekResponse = await fetch(`${API_BASE}/posts?${peekParams.toString()}`);
         const peekData = await peekResponse.json();
         if (Array.isArray(peekData.posts) && peekData.posts.length > 0) {
-            nextLastUUID = data.next_last_uuid;
+            nextLastID = data.next_last_id;
         } else {
-            nextLastUUID = null;
+            nextLastID = null;
         }
     } else {
-        nextLastUUID = null;
+        nextLastID = null;
     }
     ui.createPaginationControls();
     updateUrlForPage();
 }
 
-async function showPostDetail(uuid) {
+async function showPostDetail(id) {
     try {
-        const post = await api.getPostDetail(uuid);
-        currentPostUUID = uuid;
+        const post = await api.getPostDetail(id);
+        currentPostID = id;
         ui.updatePostDetail(post);
         ui.resetCommentForm();
         ui.showModal();
-        const expectedPath = `/posts/${uuid}`;
+        const expectedPath = `/posts/${id}`;
         if (window.location.pathname !== expectedPath) {
-            updateUrlForPostDetail(uuid);
+            updateUrlForPostDetail(id);
         }
     } catch (error) {
         ui.showError('Failed to load post details');
     }
 }
 
-async function deletePost(uuid) {
+async function deletePost(id) {
     if (!confirm('Delete this post?')) return;
     try {
-        await api.deletePost(uuid);
+        await api.deletePost(id);
         await fetchPosts();
-        if (currentPostUUID === uuid) {
+        if (currentPostID === id) {
             ui.hideModal();
         }
     } catch (error) {
@@ -271,11 +271,11 @@ elements.addPostForm.addEventListener('submit', async (event) => {
 elements.addCommentForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = elements.commentBodyInput.value.trim();
-    if (!body || !currentPostUUID) return;
+    if (!body || !currentPostID) return;
     try {
-        await api.createComment(currentPostUUID, body);
+        await api.createComment(currentPostID, body);
         elements.commentBodyInput.value = '';
-        await showPostDetail(currentPostUUID);
+        await showPostDetail(currentPostID);
         await fetchPosts();
     } catch (error) {
         ui.showError('Failed to add comment');
@@ -288,17 +288,17 @@ window.deletePost = deletePost;
 // Pagination controls
 function goToNextPage() {
     // Block navigation if there is no next page, to prevent empty page views
-    if (!nextLastUUID) return;
-    lastUUIDStack.push(nextLastUUID);
-    currentLastUUID = nextLastUUID;
+    if (!nextLastID) return;
+    lastIDStack.push(nextLastID);
+    currentLastID = nextLastID;
     fetchPosts();
 }
 
 function goToPrevPage() {
     // Only allow going back if there is a previous page in the stack
-    if (lastUUIDStack.length > 1) {
-        lastUUIDStack.pop();
-        currentLastUUID = lastUUIDStack[lastUUIDStack.length - 1];
+    if (lastIDStack.length > 1) {
+        lastIDStack.pop();
+        currentLastID = lastIDStack[lastIDStack.length - 1];
         fetchPosts();
     }
 }
@@ -307,44 +307,44 @@ function updateUrlForPage() {
     // Always update the URL to reflect the current pagination state for shareability and navigation
     const params = new URLSearchParams();
     params.append('limit', postsPerPage);
-    if (currentLastUUID) params.append('last_uuid', currentLastUUID);
-    history.pushState({ type: 'page', lastUUID: currentLastUUID }, '', `?${params.toString()}`);
+    if (currentLastID) params.append('last_id', currentLastID);
+    history.pushState({ type: 'page', lastID: currentLastID }, '', `?${params.toString()}`);
 }
 
-function updateUrlForPostDetail(postUUID) {
+function updateUrlForPostDetail(postID) {
     // Use pushState to allow browser navigation and deep linking to post details
-    history.pushState({ type: 'post', postUUID }, '', `/posts/${postUUID}`);
+    history.pushState({ type: 'post', postID }, '', `/posts/${postID}`);
 }
 
-// Helper: Find and load the page containing a specific post UUID
-async function loadPageContainingPost(postUUID) {
+// Helper: Find and load the page containing a specific post ID
+async function loadPageContainingPost(postID) {
     // Find the correct page for a post so the background list matches the detail
-    let lastUUID = null;
+    let lastID = null;
     let found = false;
     let pagePosts = [];
     let pageStack = [null];
     while (!found) {
         const params = new URLSearchParams();
         params.append('limit', postsPerPage);
-        if (lastUUID) params.append('last_uuid', lastUUID);
+        if (lastID) params.append('last_id', lastID);
         const response = await fetch(`${API_BASE}/posts?${params.toString()}`);
         const data = await response.json();
         if (!Array.isArray(data.posts) || data.posts.length === 0) break;
         pagePosts = data.posts;
-        if (pagePosts.some(post => post.uuid === postUUID)) {
+        if (pagePosts.some(post => post.id === postID)) {
             found = true;
             break;
         }
-        if (!data.next_last_uuid) break;
-        lastUUID = data.next_last_uuid;
-        pageStack.push(lastUUID);
+        if (!data.next_last_id) break;
+        lastID = data.next_last_id;
+        pageStack.push(lastID);
     }
     if (found) {
-        lastUUIDStack = [...pageStack];
-        currentLastUUID = lastUUIDStack[lastUUIDStack.length - 1];
+        lastIDStack = [...pageStack];
+        currentLastID = lastIDStack[lastIDStack.length - 1];
     } else {
-        lastUUIDStack = [null];
-        currentLastUUID = null;
+        lastIDStack = [null];
+        currentLastID = null;
     }
 }
 
@@ -359,17 +359,17 @@ function restoreFromUrl() {
     }
     if (path.startsWith('/posts/') && /^\/posts\/\d+$/.test(path)) {
         // When accessing a post detail, ensure the background list is the correct page
-        const postUUID = path.split('/')[2];
-        loadPageContainingPost(postUUID).then(() => {
-            fetchPosts().then(() => showPostDetail(postUUID));
+        const postID = path.split('/')[2];
+        loadPageContainingPost(postID).then(() => {
+            fetchPosts().then(() => showPostDetail(postID));
         });
     } else {
         // For pagination, restore the correct page from the URL
         const params = new URLSearchParams(search);
-        const lastUUID = params.get('last_uuid');
-        currentLastUUID = lastUUID;
-        lastUUIDStack = [null];
-        if (lastUUID) lastUUIDStack.push(lastUUID);
+        const lastID = params.get('last_id');
+        currentLastID = lastID;
+        lastIDStack = [null];
+        if (lastID) lastIDStack.push(lastID);
         fetchPosts();
     }
 }
