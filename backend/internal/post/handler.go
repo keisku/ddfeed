@@ -72,9 +72,17 @@ func List(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 				"SELECT public_id, body FROM post ORDER BY id DESC LIMIT ?",
 				limit)
 		} else {
-			err = db.SelectContext(r.Context(), &posts,
-				"SELECT public_id, body FROM post WHERE id < (SELECT id FROM post WHERE public_id = ?) ORDER BY id DESC LIMIT ?",
-				lastID, limit)
+			pkStr, _ := vk.Do(r.Context(), vk.B().Get().Key(fmt.Sprintf("post_pk:%s", lastID)).Build()).AsBytes()
+			postID, err := strconv.Atoi(string(pkStr))
+			if err == nil {
+				err = db.SelectContext(r.Context(), &posts,
+					"SELECT public_id, body FROM post WHERE id < ? ORDER BY id DESC LIMIT ?",
+					postID, limit)
+			} else {
+				err = db.SelectContext(r.Context(), &posts,
+					"SELECT public_id, body FROM post WHERE id < (SELECT id FROM post WHERE public_id = ?) ORDER BY id DESC LIMIT ?",
+					lastID, limit)
+			}
 		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
