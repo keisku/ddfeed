@@ -174,7 +174,7 @@ const ui = {
 };
 
 // Event Handlers
-async function fetchPosts() {
+async function fetchPosts(suppressUrlUpdate = false) {
     const params = new URLSearchParams();
     params.append('limit', postsPerPage);
     if (currentLastID) params.append('last_id', currentLastID);
@@ -207,7 +207,9 @@ async function fetchPosts() {
         nextLastID = null;
     }
     ui.createPaginationControls();
-    updateUrlForPage();
+    if (!suppressUrlUpdate) {
+        updateUrlForPage();
+    }
 }
 
 async function showPostDetail(id) {
@@ -312,8 +314,9 @@ function updateUrlForPage() {
 }
 
 function updateUrlForPostDetail(postID) {
-    // Use pushState to allow browser navigation and deep linking to post details
-    history.pushState({ type: 'post', postID }, '', `/posts/${postID}`);
+    // Preserve the current query string (pagination state)
+    const search = window.location.search;
+    history.pushState({ type: 'post', postID }, '', `/posts/${postID}${search}`);
 }
 
 // Helper: Find and load the page containing a specific post ID
@@ -357,12 +360,15 @@ function restoreFromUrl() {
         history.replaceState({ type: 'page' }, '', '/posts');
         return;
     }
-    if (path.startsWith('/posts/') && /^\/posts\/\d+$/.test(path)) {
+    if (path.startsWith('/posts/') && /^\/posts\/[A-Za-z0-9]+$/.test(path)) {
         // When accessing a post detail, ensure the background list is the correct page
         const postID = path.split('/')[2];
-        loadPageContainingPost(postID).then(() => {
-            fetchPosts().then(() => showPostDetail(postID));
-        });
+        const params = new URLSearchParams(search);
+        const lastID = params.get('last_id');
+        currentLastID = lastID;
+        lastIDStack = [null];
+        if (lastID) lastIDStack.push(lastID);
+        fetchPosts(true).then(() => showPostDetail(postID));
     } else {
         // For pagination, restore the correct page from the URL
         const params = new URLSearchParams(search);
