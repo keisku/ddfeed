@@ -200,17 +200,20 @@ func Delete(db *sqlx.DB, vk valkey.Client) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%s", publicIDStr)).Build()).Error(); err != nil {
-			slog.ErrorContext(r.Context(), "failed to delete post in valkey", slog.Any("error", err))
+		delKeys := []string{
+			fmt.Sprintf("post:%s", publicIDStr),
+			fmt.Sprintf("post_pk:%s", publicIDStr),
+			fmt.Sprintf("post:%s:comment_count", publicIDStr),
 		}
-		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post_pk:%s", publicIDStr)).Build()).Error(); err != nil {
-			slog.ErrorContext(r.Context(), "failed to delete post pk in valkey", slog.Any("error", err))
+		multi := []valkey.Completed{
+			vk.B().Del().Key(delKeys...).Build(),
+			vk.B().Decr().Key("post:total_count").Build(),
 		}
-		if err := vk.Do(r.Context(), vk.B().Del().Key(fmt.Sprintf("post:%s:comment_count", publicIDStr)).Build()).Error(); err != nil {
-			slog.ErrorContext(r.Context(), "failed to delete comment count in valkey", slog.Any("error", err))
-		}
-		if err := vk.Do(r.Context(), vk.B().Decr().Key("post:total_count").Build()).Error(); err != nil {
-			slog.ErrorContext(r.Context(), "failed to decrement total post count in valkey", slog.Any("error", err))
+		results := vk.DoMulti(r.Context(), multi...)
+		for i, res := range results {
+			if res.Error() != nil {
+				slog.ErrorContext(r.Context(), "delete post caches from valkey", slog.Any("cmd_index", i), slog.Any("error", res.Error()))
+			}
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
