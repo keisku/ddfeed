@@ -76,15 +76,19 @@ services:
       - DDFEED_BACKEND_PORT=8080
       # Datadog
       - DD_SERVICE=ddfeed-backend
+      - DD_VERSION=${GIT_COMMIT_SHA} # git rev-parse HEAD
       - DD_TRACE_DEBUG=false
       - DD_TRACE_STARTUP_LOGS=false
       - DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED=true
       - DD_DBM_PROPAGATION_MODE=full
       - DD_PROFILING_ENABLED=true
+      - DD_GIT_REPOSITORY_URL=github.com/keisku/ddfeed
+      - DD_GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
       # OTel
       - OTEL_EXPORTER_OTLP_ENDPOINT=agent:4317
       - OTEL_SERVICE_NAME=ddfeed-backend
       - OTEL_TRACE_DEBUG=false
+      - OTEL_RESOURCE_ATTRIBUTES=service.version=${GIT_COMMIT_SHA},git.commit.sha=${GIT_COMMIT_SHA},git.repository_url=github.com/keisku/ddfeed
     env_file:
       - .env
     healthcheck:

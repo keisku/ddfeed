@@ -24,10 +24,10 @@ Build and run containers.
 
 ```bash
 # If you want to try Datadog Tracer.
-APM_TARGET=dd COMPOSE_BAKE=true docker compose up -d --build
+APM_TARGET=dd COMPOSE_BAKE=true GIT_COMMIT_SHA=$(git rev-parse HEAD) docker compose up -d --build
 
 # If you want to try OTel Tracer.
-APM_TARGET=otel COMPOSE_BAKE=true docker compose up -d --build
+APM_TARGET=otel COMPOSE_BAKE=true GIT_COMMIT_SHA=$(git rev-parse HEAD) docker compose up -d --build
 ```
 
 Go to http://localhost:16163
