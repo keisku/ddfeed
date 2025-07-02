@@ -60,6 +60,7 @@ services:
     build:
       context: ./backend
       target: ${APM_TARGET}
+    cgroup: host # For OpenTelemetry to get the (Docker) container ID.
     depends_on:
       mysql:
         condition: service_healthy

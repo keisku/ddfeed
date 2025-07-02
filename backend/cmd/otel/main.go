@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"time"
 
@@ -225,10 +227,18 @@ func newTraceProvider() (*trace.TracerProvider, error) {
 		}
 		opts = append(opts, trace.WithSyncer(stdoutPrinter))
 	}
+	var attrs []attribute.KeyValue
+	containerID := getDockerContainerID()
+	if containerID == "" {
+		slog.Warn("failed to get container ID, skipping container attributes")
+	} else {
+		attrs = append(attrs, semconv.ContainerIDKey.String(containerID))
+	}
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
 			semconv.SchemaURL,
+			attrs...,
 		),
 	)
 	if err != nil {
@@ -279,4 +289,26 @@ func newLoggerProvider() (*log.LoggerProvider, error) {
 	)
 	slog.Info("logger provider created successfully")
 	return loggerProvider, nil
+}
+
+var regexDockerContainerID = regexp.MustCompile(`[0-9a-f]{64}`)
+
+func getDockerContainerID() string {
+	// Example: 0::/docker/d9478020976ef892a671b0c5042e04814c3b3f85ba5e923afd23826b7603b6d5
+	f, err := os.Open("/proc/self/cgroup")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "/docker/") {
+			matches := regexDockerContainerID.FindAllString(line, -1)
+			if len(matches) > 0 {
+				return matches[0]
+			}
+		}
+	}
+	return ""
 }
