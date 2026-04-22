@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 
 # Build for Datadog
 FROM build AS dd-build
-RUN go install github.com/DataDog/orchestrion@latest
+RUN go install github.com/DataDog/orchestrion@bfa9ef5ea3b72fe8dc5684cd94a883daa183060e
 COPY orchestrion.tool.go .
 RUN go generate ./...
 RUN CGO_ENABLED=0 orchestrion go build -ldflags "-s -w" -o app ./cmd/dd/main.go
