@@ -1,9 +1,9 @@
 module backend
 
-go 1.24.2
+go 1.26.3
 
 require (
-	github.com/DataDog/orchestrion v1.4.0
+	github.com/DataDog/orchestrion v1.10.0
 	github.com/XSAM/otelsql v0.38.0
 	github.com/go-sql-driver/mysql v1.9.2
 	github.com/jmoiron/sqlx v1.4.0
@@ -42,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.2 // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
-	github.com/DataDog/dd-trace-go/v2 v2.1.0-dev // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.8.1 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250319104955-81009b9bad14 // indirect
 	github.com/DataDog/go-sqllexer v0.1.3 // indirect
