@@ -1,4 +1,4 @@
-FROM golang:1.24 AS build
+FROM golang:1.26 AS build
 WORKDIR /build
 COPY cmd cmd
 COPY internal internal
@@ -9,6 +9,8 @@ FROM build AS dd-build
 RUN go install github.com/DataDog/orchestrion@latest
 COPY orchestrion.tool.go .
 RUN go generate ./...
+# Below line is to avoid "Failed to pin orchestrion" error (https://github.com/DataDog/orchestrion/issues/491#issuecomment-2577822513)
+RUN orchestrion pin 
 RUN CGO_ENABLED=0 orchestrion go build -ldflags "-s -w" -o app ./cmd/dd/main.go
 
 # Build for OpenTelemetry
